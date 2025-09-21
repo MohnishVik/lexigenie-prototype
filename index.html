@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LexiGenie - Legal Clarity with AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .brand-gradient-text {
+            background: linear-gradient(90deg, #1777B8, #D43F8D);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .card-shadow {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .gauge-bg { stroke: #e5e7eb; }
+        .gauge-fg {
+            transition: stroke-dashoffset 1.5s cubic-bezier(0.65, 0, 0.35, 1);
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        #upload-box.dragging {
+            border-color: #D43F8D;
+            background-color: rgba(212, 63, 141, 0.05);
+        }
+        .skeleton-loader {
+            background-color: #e5e7eb;
+            border-radius: 0.25rem;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse { 50% { opacity: .5; } }
+        .btn-spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .view-transition {
+            animation: fadeInUp 0.7s ease-in-out forwards;
+            opacity: 0;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        body.is-loading {
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <main id="app-container" class="w-full max-w-5xl mx-auto transition-all duration-500">
+        
+        <section id="upload-view">
+            <header class="text-center mb-8">
+                <h1 class="text-5xl font-extrabold text-gray-800">Lexi<span class="brand-gradient-text">Genie</span></h1>
+                <p class="text-xl text-gray-600 mt-2">Your Personal AI Legal Assistant</p>
+            </header>
+            <div class="bg-white p-8 rounded-2xl card-shadow text-center view-transition">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-2">Begin Your Analysis</h2>
+                <p class="text-gray-500 mb-6 max-w-xl mx-auto">Upload your contract to receive a plain-language summary, risk analysis, and actionable insights in seconds.</p>
+                <div id="upload-box" class="border-2 border-dashed border-gray-300 rounded-lg p-10 cursor-pointer transition-colors duration-300 hover:border-pink-400">
+                    <input type="file" id="file-input" class="hidden" accept=".txt,.pdf,.docx">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 21H5.25A2.25 2.25 0 013 17.25z" /></svg>
+                    <p class="mt-2 text-gray-600"><span class="font-semibold brand-gradient-text">Click to upload</span> or drag and drop</p>
+                    <p class="text-xs text-gray-500 mt-1">Accepts: TXT, PDF, DOCX</p>
+                </div>
+                <p id="file-name" class="mt-4 text-gray-700 font-medium"></p>
+                <div id="error-message" class="mt-4 text-red-600 font-medium hidden"></div>
+            </div>
+        </section>
+        
+        <section id="overview-view" class="hidden text-center">
+             <header class="text-center mb-8">
+                <h1 class="text-4xl font-extrabold text-gray-800">Lexi<span class="brand-gradient-text">Genie</span></h1>
+             </header>
+            <div class="bg-white p-8 rounded-2xl card-shadow">
+                <h2 class="text-3xl font-bold text-gray-800">Analysis Complete</h2>
+                <p class="text-gray-500 mt-2">Here is a high-level overview of your document.</p>
+                <div class="relative w-48 h-48 mx-auto my-6">
+                    <svg class="w-full h-full" viewBox="0 0 100 100">
+                        <circle class="gauge-bg" cx="50" cy="50" r="45" stroke-width="10" fill="none"></circle>
+                        <circle id="gauge-fg-overview" class="gauge-fg" cx="50" cy="50" r="45" stroke-width="10" fill="none" stroke-dasharray="283" stroke-dashoffset="283"></circle>
+                    </svg>
+                    <div id="score-text-overview" class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span class="text-4xl font-bold text-gray-800">--</span>
+                        <span class="text-sm font-medium text-gray-500">Legal Health Score</span>
+                    </div>
+                </div>
+                <p id="score-summary-overview" class="text-center text-gray-700 font-semibold text-lg max-w-md mx-auto"></p>
+            </div>
+            <div class="flex justify-center items-center gap-4 mt-8">
+                 <button id="view-report-btn" class="bg-gradient-to-r from-pink-500 to-blue-500 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300">
+                    View Full Report
+                </button>
+                 <button class="start-over-btn bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-full hover:bg-gray-300 transition-colors">
+                    Start Over
+                 </button>
+            </div>
+        </section>
+
+        <section id="report-view" class="hidden">
+             <header class="flex flex-col sm:flex-row items-center justify-between mb-8">
+                 <div class="flex items-center gap-4">
+                    <h1 class="text-3xl font-extrabold text-gray-800">Lexi<span class="brand-gradient-text">Genie</span></h1>
+                    <h2 class="text-3xl font-bold text-gray-600 hidden sm:block">/ Analysis Report</h2>
+                 </div>
+                 <button class="start-over-btn bg-gray-200 text-gray-700 font-semibold py-2 px-5 rounded-full hover:bg-gray-300 transition-colors flex items-center gap-2 mt-4 sm:mt-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 20l16-16" /></svg>
+                    Start New Analysis
+                 </button>
+            </header>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-1 flex flex-col gap-8">
+                    <div class="bg-white p-6 rounded-2xl card-shadow">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Legal Health Score</h3>
+                        <div class="relative w-48 h-48 mx-auto">
+                            <svg class="w-full h-full" viewBox="0 0 100 100">
+                                <circle class="gauge-bg" cx="50" cy="50" r="45" stroke-width="10" fill="none"></circle>
+                                <circle id="gauge-fg-report" class="gauge-fg" cx="50" cy="50" r="45" stroke-width="10" fill="none" stroke-dasharray="283" stroke-dashoffset="283" stroke-linecap="round"></circle>
+                            </svg>
+                            <div id="score-text-report" class="absolute inset-0 flex flex-col items-center justify-center">
+                                <span class="text-4xl font-bold text-gray-800">--</span>
+                                <span class="text-sm font-medium text-gray-500">Out of 100</span>
+                            </div>
+                        </div>
+                        <p id="score-summary-report" class="text-center text-gray-600 mt-4"></p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl card-shadow">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3">Plain-Language Summary</h3>
+                        <div id="summary-content-loader" class="space-y-2.5">
+                            <div class="h-2 skeleton-loader"></div> <div class="h-2 skeleton-loader w-11/12"></div>
+                        </div>
+                        <p id="summary-content" class="text-gray-600 leading-relaxed"></p>
+
+                        <div id="ask-question-section" class="mt-6 border-t pt-4 hidden">
+                            <h4 class="text-md font-semibold text-gray-700 mb-2">✨ Ask a Follow-up Question</h4>
+                            <div class="relative">
+                                <input type="text" id="question-input" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500 pr-10" placeholder="e.g., Can my rent increase?">
+                                <button id="ask-btn" class="absolute inset-y-0 right-0 px-3 flex items-center bg-gradient-to-r from-pink-500 to-blue-500 text-white rounded-r-md hover:opacity-90">
+                                    <svg id="ask-btn-icon" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                                    <svg id="ask-btn-spinner" class="h-5 w-5 btn-spinner hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                </button>
+                            </div>
+                            <div id="answer-container" class="mt-3 text-sm text-gray-800 bg-gray-50 p-3 rounded-md border hidden"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 bg-white p-6 rounded-2xl card-shadow">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4">Risk Radar</h3>
+                    <div id="risk-radar-content-loader" class="space-y-4">
+                        <div class="h-24 skeleton-loader"></div><div class="h-24 skeleton-loader"></div>
+                    </div>
+                    <div id="risk-radar-content" class="space-y-4"></div>
+                </div>
+            </div>
+        </section>
+
+        <div id="loading-overlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 z-50 hidden">
+            <h1 class="text-5xl font-extrabold text-gray-800 mt-4">Lexi<span class="brand-gradient-text">Genie</span></h1>
+            <h2 id="loading-status" class="text-2xl font-semibold text-gray-700 mt-6">Analyzing Your Document...</h2>
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mt-8 max-w-sm mx-auto">
+                <div id="progress-bar" class="bg-gradient-to-r from-pink-500 to-blue-500 h-2.5 rounded-full" style="width: 0%; transition: width 0.5s ease-in-out;"></div>
+            </div>
+        </div>
+        
+        <div id="action-modal" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        </div>
+
+    </main>
+    
+    <script>
+        const API_KEY = "";
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
+        
+        let contractText = 'AIzaSyDjOM0VnGGp7nb_T1jpIDFwkDoT7A_9xeU';
+        let analysisResult = null;
+
+        const DOM = {
+            uploadView: document.getElementById('upload-view'),
+            overviewView: document.getElementById('overview-view'),
+            reportView: document.getElementById('report-view'),
+            loadingOverlay: document.getElementById('loading-overlay'),
+            uploadBox: document.getElementById('upload-box'),
+            fileInput: document.getElementById('file-input'),
+            fileNameDisplay: document.getElementById('file-name'),
+            errorMessage: document.getElementById('error-message'),
+            loadingStatus: document.getElementById('loading-status'),
+            progressBar: document.getElementById('progress-bar'),
+            viewReportBtn: document.getElementById('view-report-btn'),
+            askBtn: document.getElementById('ask-btn'),
+            questionInput: document.getElementById('question-input')
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            DOM.uploadBox.addEventListener('click', () => DOM.fileInput.click());
+            DOM.fileInput.addEventListener('change', handleFileSelect);
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                DOM.uploadBox.addEventListener(eventName, preventDefaults, false);
+            });
+            DOM.uploadBox.addEventListener('dragenter', () => DOM.uploadBox.classList.add('dragging'));
+            DOM.uploadBox.addEventListener('dragleave', () => DOM.uploadBox.classList.remove('dragging'));
+            DOM.uploadBox.addEventListener('drop', handleDrop, false);
+            
+            DOM.viewReportBtn.addEventListener('click', showReportView);
+            document.querySelectorAll('.start-over-btn').forEach(btn => btn.addEventListener('click', resetApp));
+            DOM.askBtn.addEventListener('click', handleAskQuestion);
+            DOM.questionInput.addEventListener('keyup', (e) => { 
+                if (e.key === 'Enter') handleAskQuestion();
+            });
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function handleDrop(e) {
+            DOM.uploadBox.classList.remove('dragging');
+            let dt = e.dataTransfer;
+            let files = dt.files;
+            handleFileSelect({ target: { files: files } });
+        }
+        
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            DOM.fileNameDisplay.textContent = `Selected: ${file.name}`;
+            DOM.errorMessage.classList.add('hidden');
+            
+            const isTxt = file.type === 'text/plain';
+            const isPdf = file.type === 'application/pdf';
+            const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx');
+
+            if (isTxt || isPdf || isDocx) {
+                if (isTxt) {
+                    try {
+                        contractText = await file.text();
+                        startAnalysis(true); 
+                    } catch (error) {
+                        showError('Could not read the text file.');
+                    }
+                } else {
+                    startAnalysis(false);
+                }
+            } else {
+                showError('Unsupported file type. Please upload a TXT, PDF, or DOCX file.');
+            }
+        }
+        
+        async function startAnalysis(isLive) {
+            document.body.classList.add('is-loading');
+            DOM.loadingOverlay.classList.remove('hidden');
+            updateProgress(20, "Preparing document...", 0);
+            
+            try {
+                if (isLive && API_KEY) {
+                    const analysisPrompt = `
+                        You are LexiGenie, an expert AI legal assistant for an Indian audience. Analyze the following legal contract text.
+                        Provide a detailed analysis in a valid JSON object format based on the provided schema.
+                        Ensure all monetary values are in Indian Rupees (₹).
+                        Your analysis must include:
+                        1.  'legalHealthScore': An integer from 0 (very risky) to 100 (very fair).
+                        2.  'summary': A brief, plain-language summary of the contract's purpose and key terms.
+                        3.  'risks': An array of objects, where each object represents a potential risk. For each risk, include:
+                            - 'title': A short, descriptive title (e.g., "Strict Lock-in Period").
+                            - 'severity': A string, either "High", "Medium", or "Low".
+                            - 'originalText': The exact text snippet from the contract that contains the risk.
+                            - 'explanation': A simple explanation of why this is a risk for the user in an Indian context.
+                            - 'benchmark': An object with 'label' (e.g., "Common Practice in India"), 'value' (e.g., "1-2 months' notice"), and 'yourValue'.
+                            - 'actionTemplate': An object with 'title' and 'content' for a pre-written negotiation email relevant to India.
+                    
+                        Contract Text to Analyze:
+                        ---
+                        ${contractText}
+                        ---
+                    `;
+                    updateProgress(60, "Communicating with Generative AI...", 500);
+                    analysisResult = await callGeminiAPI(analysisPrompt, getAnalysisSchema());
+                } else {
+                    updateProgress(60, "Analyzing document (Demo Mode)...", 500);
+                    analysisResult = getSampleAnalysisData();
+                    contractText = "This is a sample rental agreement for demonstration purposes.";
+                }
+
+                updateProgress(100, "Finalizing your overview...", 1500);
+                setTimeout(() => showOverview(analysisResult), 2000);
+
+            } catch (error) {
+                console.error("Analysis Error:", error);
+                DOM.loadingOverlay.classList.add('hidden');
+                document.body.classList.remove('is-loading');
+                resetApp();
+                showError(error.message || 'An error occurred during analysis. Please try again.');
+            }
+        }
+        
+        function switchView(viewToShow) {
+            [DOM.uploadView, DOM.overviewView, DOM.reportView].forEach(view => {
+                view.classList.add('hidden');
+                view.classList.remove('view-transition');
+            });
+            viewToShow.classList.remove('hidden');
+            void viewToShow.offsetWidth;
+            viewToShow.classList.add('view-transition');
+        }
+
+        function showOverview(data) {
+            DOM.loadingOverlay.classList.add('hidden');
+            document.body.classList.remove('is-loading');
+            populateScore(data.legalHealthScore, 'overview');
+            document.getElementById('score-summary-overview').textContent = data.summary;
+            switchView(DOM.overviewView);
+        }
+
+        function showReportView() {
+            populateScore(analysisResult.legalHealthScore, 'report');
+            populateSummary(analysisResult.summary);
+            populateRiskRadar(analysisResult.risks);
+            switchView(DOM.reportView);
+        }
+        
+        function resetApp() {
+            contractText = '';
+            analysisResult = null;
+            DOM.fileNameDisplay.textContent = '';
+            DOM.fileInput.value = ''; 
+            DOM.errorMessage.classList.add('hidden');
+            const questionInput = document.getElementById('question-input');
+            const answerContainer = document.getElementById('answer-container');
+            if(questionInput) questionInput.value = '';
+            if(answerContainer) answerContainer.classList.add('hidden');
+            switchView(DOM.uploadView);
+        }
+
+        async function callGeminiAPI(prompt, schema = null) {
+            let attempt = 0;
+            const maxAttempts = 5;
+            while (attempt < maxAttempts) {
+                try {
+                    const payload = {
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: schema ? {
+                            responseMimeType: "application/json",
+                            responseSchema: schema,
+                        } : {}
+                    };
+                    
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorBody = await response.json();
+                        throw new Error(`API Error: ${errorBody.error?.message || response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (!textContent) {
+                         throw new Error("Received an empty response from the API.");
+                    }
+                    
+                    if (schema) {
+                        try { return JSON.parse(textContent); } 
+                        catch (e) { 
+                            throw new Error("AI returned an invalid data format. Please try again.");
+                        }
+                    }
+                    return textContent;
+                } catch (error) {
+                    attempt++;
+                    if (attempt >= maxAttempts) throw error;
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                }
+            }
+        }
+        
+        async function handleAskQuestion() {
+            const questionInput = document.getElementById('question-input');
+            const askBtn = document.getElementById('ask-btn');
+            const askBtnIcon = document.getElementById('ask-btn-icon');
+            const askBtnSpinner = document.getElementById('ask-btn-spinner');
+            const answerContainer = document.getElementById('answer-container');
+            const question = questionInput.value.trim();
+            if (!question) return;
+
+            askBtnIcon.classList.add('hidden');
+            askBtnSpinner.classList.remove('hidden');
+            askBtn.disabled = true;
+            questionInput.disabled = true;
+            answerContainer.classList.remove('hidden');
+            answerContainer.innerHTML = '<div class="h-2 skeleton-loader w-1/2"></div>';
+
+            try {
+                const qaPrompt = `
+                    You are a helpful assistant for an Indian user. Answer the user's question based *only* on the provided contract text.
+                    If the answer cannot be found, state that the information is not present in the document. Do not invent information.
+                    Keep your answer concise.
+                    
+                    Contract Text:
+                    ---
+                    ${contractText}
+                    ---
+
+                    User's Question:
+                    "${question}"
+                `;
+                const answer = await callGeminiAPI(qaPrompt);
+                answerContainer.innerHTML = answer.replace(/\n/g, '<br>');
+            } catch (error) {
+                answerContainer.textContent = "Sorry, I couldn't get an answer. Please try again.";
+            } finally {
+                askBtnIcon.classList.remove('hidden');
+                askBtnSpinner.classList.add('hidden');
+                askBtn.disabled = false;
+                questionInput.disabled = false;
+            }
+        }
+        
+        async function handleRedlining(riskIndex, button) {
+            const risk = analysisResult.risks[riskIndex];
+            if (!risk) return;
+            toggleRedlineButtonLoading(button, true);
+            const redlineResultEl = document.getElementById(`redline-result-${riskIndex}`);
+            redlineResultEl.classList.remove('hidden');
+            redlineResultEl.querySelector('p:last-child').innerHTML = '<div class="h-2 skeleton-loader w-3/4 my-1"></div>';
+
+            try {
+                const redlinePrompt = `
+                    You are an AI legal assistant specializing in Indian contract negotiation.
+                    Rewrite the following legal clause to be fairer and more balanced for both parties in an Indian context.
+                    Provide ONLY the rewritten clause text, without any introductory phrases.
+
+                    Original Risky Clause:
+                    "${risk.originalText}"
+                `;
+                const fairerClause = await callGeminiAPI(redlinePrompt);
+                redlineResultEl.querySelector('p:last-child').textContent = fairerClause;
+                button.style.display = 'none';
+            } catch(error) {
+                redlineResultEl.querySelector('p:last-child').textContent = "Could not generate a suggestion at this time.";
+            } finally {
+                toggleRedlineButtonLoading(button, false);
+            }
+        }
+
+        function updateProgress(width, status, delay) {
+            setTimeout(() => {
+                DOM.progressBar.style.width = `${width}%`;
+                DOM.loadingStatus.textContent = status;
+            }, delay);
+        }
+
+        function populateScore(score = 0, view) {
+            const gaugeFg = document.getElementById(`gauge-fg-${view}`);
+            const scoreTextEl = document.getElementById(`score-text-${view}`).querySelector('span');
+            const scoreSummaryEl = document.getElementById(`score-summary-${view}`);
+            
+            const radius = 45;
+            const circumference = 2 * Math.PI * radius;
+            const offset = circumference - (score / 100) * circumference;
+            
+            let color = 'stroke-green-500';
+            if (score < 75) color = 'stroke-yellow-500';
+            if (score < 50) color = 'stroke-red-500';
+            
+            gaugeFg.className.baseVal = `gauge-fg ${color}`;
+            gaugeFg.style.strokeDashoffset = circumference;
+            setTimeout(() => { gaugeFg.style.strokeDashoffset = offset; }, 100);
+
+            scoreTextEl.textContent = score;
+
+            if (scoreSummaryEl) {
+                if (view === 'overview') {
+                    if (score >= 75) scoreSummaryEl.textContent = 'This document seems fair and balanced.';
+                    else if (score >= 50) scoreSummaryEl.textContent = 'There are some clauses that require your attention.';
+                    else scoreSummaryEl.textContent = 'Proceed with caution. We have identified significant risks.';
+                } else {
+                    scoreSummaryEl.textContent = document.getElementById('score-summary-overview').textContent;
+                }
+            }
+        }
+
+        function populateSummary(summary = "Could not generate summary.") {
+            document.getElementById('summary-content-loader').classList.add('hidden');
+            document.getElementById('summary-content').textContent = summary;
+            document.getElementById('ask-question-section').classList.remove('hidden');
+        }
+
+        function populateRiskRadar(risks = []) {
+            const riskRadarContentLoader = document.getElementById('risk-radar-content-loader');
+            const riskRadarContent = document.getElementById('risk-radar-content');
+            riskRadarContentLoader.classList.add('hidden');
+            riskRadarContent.innerHTML = ''; 
+
+            if (risks.length === 0) {
+                riskRadarContent.innerHTML = `<div class="text-center p-4 border border-green-200 bg-green-50 rounded-lg view-transition">
+                    <h4 class="font-semibold text-green-800">No Major Risks Found</h4>
+                    <p class="text-sm text-green-700">Our AI analysis did not find any common high-risk clauses in your document.</p>
+                </div>`;
+                return;
+            }
+
+            risks.forEach((risk, index) => {
+                const severityColors = {
+                    'High': { border: 'border-red-400', bg: 'bg-red-50/50', text: 'text-red-800', tag: 'bg-red-100' },
+                    'Medium': { border: 'border-yellow-400', bg: 'bg-yellow-50/50', text: 'text-yellow-800', tag: 'bg-yellow-100' },
+                    'Low': { border: 'border-blue-400', bg: 'bg-blue-50/50', text: 'text-blue-800', tag: 'bg-blue-100' }
+                };
+                const colors = severityColors[risk.severity] || { border: 'border-gray-400', bg: 'bg-gray-50/50', text: 'text-gray-800', tag: 'bg-gray-100' };
+                
+                const riskElement = document.createElement('div');
+                riskElement.className = `p-4 border-l-4 rounded-r-lg ${colors.border} ${colors.bg}`;
+                
+                const buttonsId = `buttons-${index}`;
+                riskElement.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-md font-semibold text-gray-800">${risk.title}</h4>
+                        <span class="text-xs font-bold px-2 py-1 rounded-full ${colors.tag} ${colors.text}">${risk.severity?.toUpperCase()} RISK</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mt-2 mb-4">${risk.explanation}</p>
+                    <div class="bg-white/50 p-3 rounded-lg border border-gray-200/50 text-sm mb-4">
+                        <p class="font-semibold text-gray-500 text-xs mb-1">WHAT THE DOCUMENT SAYS</p>
+                        <p class="text-gray-700 font-mono text-xs leading-5">"${risk.originalText}"</p>
+                    </div>
+                    <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-200/50 text-sm mb-4">
+                        <p class="font-semibold text-blue-800 text-xs mb-1">BENCHMARK COMPARISON</p>
+                        <div class="flex justify-between items-center flex-wrap gap-2">
+                            <span class="text-blue-700">${risk.benchmark.label}: <strong class="font-bold">${risk.benchmark.value}</strong></span>
+                            <span class="text-yellow-700 bg-yellow-100 px-2 py-1 rounded-md text-xs">Your contract: <strong class="font-bold">${risk.benchmark.yourValue}</strong></span>
+                        </div>
+                    </div>
+                    <div id="redline-result-${index}" class="hidden bg-green-50/50 p-3 rounded-lg border border-green-200/50 text-sm mb-4">
+                         <p class="font-semibold text-green-800 text-xs mb-1">SUGGESTED FAIRER WORDING</p>
+                         <p class="text-green-900 text-xs leading-5"></p>
+                    </div>
+                    <div id="${buttonsId}" class="flex items-center gap-3 mt-4"></div>
+                `;
+                riskRadarContent.appendChild(riskElement);
+                
+                const buttonsContainer = document.getElementById(buttonsId);
+                const redlineBtn = document.createElement('button');
+                redlineBtn.className = 'redline-btn flex-1 text-sm font-semibold bg-white/60 hover:bg-white/90 border border-gray-300/50 text-gray-700 py-2 px-3 rounded-md transition-colors flex items-center justify-center gap-2';
+                redlineBtn.innerHTML = `
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
+                    <span class="btn-text">Suggest Fairer Wording</span>
+                    <svg class="h-4 w-4 btn-spinner hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                `;
+                redlineBtn.addEventListener('click', () => handleRedlining(index, redlineBtn));
+                
+                const actionBtn = document.createElement('button');
+                actionBtn.className = 'action-btn flex-1 text-sm font-semibold bg-gradient-to-r from-pink-500 to-blue-500 text-white py-2 px-3 rounded-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2';
+                actionBtn.innerHTML = `
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 13.5l3 3m0 0l3-3m-3 3v-6m1.06-4.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" /></svg>
+                    Generate Action Email
+                `;
+                actionBtn.addEventListener('click', () => showActionModal(risk));
+                
+                buttonsContainer.appendChild(redlineBtn);
+                buttonsContainer.appendChild(actionBtn);
+            });
+        }
+
+        function showActionModal(risk) {
+            const modal = document.getElementById('action-modal');
+            modal.innerHTML = `
+                <div class="glass-card w-full max-w-2xl p-6 rounded-2xl relative transform transition-all duration-300 scale-95 opacity-0">
+                    <button class="close-modal-btn absolute top-4 right-4 text-gray-500 hover:text-gray-800">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">${risk.actionTemplate.title}</h3>
+                    <p class="text-sm text-gray-600 mb-4">Here is a professionally worded draft email. You can copy it and send it to your landlord/other party.</p>
+                    <div class="bg-white/50 p-4 rounded-md border text-sm text-gray-700 leading-6 whitespace-pre-wrap">${risk.actionTemplate.content}</div>
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button class="close-modal-btn glass-card text-gray-700 font-semibold py-2 px-4 rounded-md hover:bg-white/80 transition-colors">Close</button>
+                        <button class="copy-btn bg-gradient-to-r from-pink-500 to-blue-500 text-white font-bold py-2 px-4 rounded-md shadow-md hover:shadow-lg transition-shadow flex items-center gap-2">
+                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a2.25 2.25 0 01-2.25 2.25h-1.5a2.25 2.25 0 01-2.25-2.25v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>
+                            <span class="copy-btn-text">Copy to Clipboard</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            modal.querySelector('.copy-btn').addEventListener('click', (e) => copyToClipboard(risk.actionTemplate.content, e.currentTarget));
+            modal.querySelectorAll('.close-modal-btn').forEach(btn => btn.addEventListener('click', closeModal));
+            modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.querySelector('div').classList.remove('scale-95', 'opacity-0'), 10);
+        }
+        
+        function copyToClipboard(text, button) {
+             const textarea = document.createElement('textarea');
+             textarea.value = text;
+             document.body.appendChild(textarea);
+             textarea.select();
+             try {
+                 document.execCommand('copy');
+                 const btnText = button.querySelector('.copy-btn-text');
+                 btnText.textContent = 'Copied!';
+                 setTimeout(() => { btnText.textContent = 'Copy to Clipboard'; }, 2000);
+             } catch (err) {
+                 console.error('Failed to copy text: ', err);
+                 const btnText = button.querySelector('.copy-btn-text');
+                 btnText.textContent = 'Copy Failed';
+             }
+             document.body.removeChild(textarea);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('action-modal');
+            modal.querySelector('div').classList.add('scale-95', 'opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+        
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-message').classList.remove('hidden');
+        }
+        
+        function toggleRedlineButtonLoading(button, isLoading) {
+            button.querySelector('.btn-text').classList.toggle('hidden', isLoading);
+            button.querySelector('.btn-spinner').classList.toggle('hidden', !isLoading);
+            button.disabled = isLoading;
+        }
+        
+        function getAnalysisSchema() {
+             return {
+              type: "OBJECT",
+              properties: {
+                legalHealthScore: { type: "NUMBER" },
+                summary: { type: "STRING" },
+                risks: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      title: { type: "STRING" },
+                      severity: { type: "STRING", enum: ["High", "Medium", "Low"] },
+                      originalText: { type: "STRING" },
+                      explanation: { type: "STRING" },
+                      benchmark: {
+                        type: "OBJECT",
+                        properties: {
+                          label: { type: "STRING" },
+                          value: { type: "STRING" },
+                          yourValue: { type: "STRING" },
+                        },
+                        required: ["label", "value", "yourValue"]
+                      },
+                      actionTemplate: {
+                        type: "OBJECT",
+                        properties: {
+                          title: { type: "STRING" },
+                          content: { type: "STRING" },
+                        },
+                        required: ["title", "content"]
+                      },
+                    },
+                    required: ["title", "severity", "originalText", "explanation", "benchmark", "actionTemplate"]
+                  },
+                },
+              },
+              required: ["legalHealthScore", "summary", "risks"]
+            };
+        }
+
+        function getSampleAnalysisData() {
+            return {
+                legalHealthScore: 58,
+                summary: "This is a standard residential rental agreement for a term of 11 months in India. It outlines the tenant's responsibilities, such as timely rent payments, and the landlord's obligations. Key areas needing attention are the strict lock-in period and the vaguely defined terms for security deposit deductions.",
+                risks: [
+                    {
+                        title: "Strict Lock-in Period",
+                        severity: "High",
+                        originalText: "The tenant agrees not to vacate the premises for a minimum period of 11 months from the date of commencement of this agreement. In case of early termination, the entire security deposit shall be forfeited by the landlord.",
+                        explanation: "This clause locks you into the agreement for the full term. If you need to move for any reason (e.g., job transfer), you risk losing your entire security deposit, which can be a significant amount.",
+                        benchmark: { label: "Common Practice in India", value: "1-2 months' notice after lock-in", yourValue: "Forfeiture of entire deposit" },
+                        actionTemplate: {
+                            title: "Negotiate Lock-in Clause",
+                            content: "Subject: Inquiry Regarding Lock-in Clause - [Your Rented Address]\n\nDear [Landlord Name],\n\nI hope this email finds you well.\n\nI am writing to discuss the lock-in period clause (Section [Clause Number]) in our rental agreement. While I fully intend to stay for the entire term, the condition of forfeiting the entire security deposit for an unforeseen early termination seems quite stringent.\n\nWould you be open to amending this to a more standard practice, such as a one or two-month notice period required for termination after the initial few months? This would provide a fair degree of flexibility for both of us.\n\nThank you for your consideration.\n\nBest regards,\n[Your Name]"
+                        }
+                    },
+                    {
+                        title: "Ambiguous Security Deposit Deductions",
+                        severity: "Medium",
+                        originalText: "The landlord is entitled to deduct from the security deposit amounts for any damages to the property, fixtures, and fittings, apart from normal wear and tear.",
+                        explanation: "The term 'damages' is very vague and not clearly defined. This could lead to disputes at the end of the tenancy, where the landlord might deduct amounts for minor issues, citing them as 'damages'.",
+                        benchmark: { label: "A Fairer Clause", value: "Specifies what constitutes 'damage' (e.g., broken items, not paint scuffs)", yourValue: "Vague 'damages' term" },
+                        actionTemplate: {
+                            title: "Clarify Deposit Deductions",
+                            content: "Subject: Clarification on Security Deposit Deductions - [Your Rented Address]\n\nDear [Landlord Name],\n\nI hope you are well.\n\nI was reviewing the rental agreement and wanted to seek a small clarification on the clause regarding security deposit deductions (Section [Clause Number]). The term 'damages' is a bit broad.\n\nTo ensure we are both on the same page and to avoid any misunderstandings later, could we perhaps list a few examples of what would be considered 'damage' versus 'normal wear and tear'? This would be very helpful.\n\nThank you for your time and clarification.\n\nSincerely,\n[Your Name]"
+                        }
+                    }
+                ]
+            };
+        }
+
+    </script>
+</body>
+</html>
+
